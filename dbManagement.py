@@ -468,64 +468,6 @@ def retrieve_from_memory(memory_id):
         return jsonify({'error': f'Error retrieving data: {err}'}), 500
 
 
-def add_report(report_data, queries_json, memories_id):
-    """
-    Añade un nuevo reporte a la base de datos.
-    report_data: Diccionario con los campos del reporte: {'TEXT1', 'TEXT2', 'RESULT'}.
-    queries_json: JSON con la estructura de la consulta.
-    memories_id: ID de la memoria asociada al reporte.
-    """
-    connection = mysql.connector.connect(**config)
-    cursor = connection.cursor(dictionary=True)
-
-    query_report = """
-        INSERT INTO report (memories_id, queries, TEXT1, TEXT2, RESULT)
-        VALUES (%s, %s, %s, %s, %s)
-    """
-    try:
-        cursor.execute(query_report, (
-            memories_id,
-            queries_json,
-            report_data['TEXT1'],
-            report_data['TEXT2'],
-            report_data['RESULT']
-        ))
-        connection.commit()
-        cursor.close()
-        connection.close()
-        return jsonify({'message': 'Reporte agregado correctamente'}), 201
-    except mysql.connector.Error as err:
-        cursor.close()
-        connection.close()
-        return jsonify({'error': f'Error al agregar reporte: {err}'}), 500
-
-def add_report_to_memory(report_name, memories_id):
-    """
-    Crea un nuevo reporte en la base de datos.
-    """
-    connection = mysql.connector.connect(**config)
-    cursor = connection.cursor(dictionary=True)
-    print("report name: ", report_name)
-    print("memory_id", memories_id)
-    query_report = """
-        INSERT INTO report (memories_id, report_name)
-        VALUES (%s, %s)
-    """
-    try:
-        cursor.execute(query_report, (memories_id, report_name))
-        rep_id = cursor.lastrowid
-        connection.commit()
-        cursor.close()
-        connection.close()
-        print(rep_id)
-        return rep_id
-    except mysql.connector.Error as err:
-        cursor.close()
-        connection.close()
-        return jsonify({'error': f'Error al agregar reporte: {err}'}), 500
-
-
-
 def obtain_reports_from_memory(memory_id):
     """
     Obtiene los reportes asociados a una memoria específica.
@@ -573,7 +515,7 @@ def obtain_report_by_id(report_id):
             }
             cursor.close()
             connection.close()
-            return jsonify(report), 200
+            return report
         else:
             cursor.close()
             connection.close()
@@ -583,11 +525,68 @@ def obtain_report_by_id(report_id):
         connection.close()
         return jsonify({'error': f'Error al obtener el reporte: {err}'}), 500
 
-
-def update_report(report_id, updated_data):
+def update_report_text(report_id, text1, text2):
     """
     Actualiza un reporte específico por su ID.
     """
+    connection = mysql.connector.connect(**config)
+    cursor = connection.cursor(dictionary=True)
+
+    query = """
+        UPDATE REPORT
+        SET TEXT1 = %s, TEXT2 = %s
+        WHERE id = %s
+    """
+    try:
+        cursor.execute(query, (
+            text1,
+            text2,
+            report_id
+        ))
+        connection.commit()
+        cursor.close()
+        connection.close()
+        return jsonify({'message': 'Reporte actualizado correctamente'}), 200
+    except mysql.connector.Error as err:
+        cursor.close()
+        connection.close()
+        return jsonify({'error': f'Error al actualizar el reporte: {err}'}), 500
+
+
+def update_report_result(report_id,result):
+    """
+    Actualiza un reporte específico por su ID.
+    """
+    connection = mysql.connector.connect(**config)
+    cursor = connection.cursor(dictionary=True)
+
+    query = """
+        UPDATE REPORT
+        SET RESULT = %s
+        WHERE id = %s
+    """
+    try:
+        cursor.execute(query, (
+            result,
+            report_id
+        ))
+        connection.commit()
+        cursor.close()
+        connection.close()
+        return jsonify({'message': 'Reporte actualizado correctamente'}), 200
+    except mysql.connector.Error as err:
+        cursor.close()
+        connection.close()
+        return jsonify({'error': f'Error al actualizar el reporte: {err}'}), 500
+
+
+
+
+def update_report(report_id, text1, text2, result):
+    """
+    Actualiza un reporte específico por su ID.
+    """
+    print("update_report" + text1 + text2 + result)
     connection = mysql.connector.connect(**config)
     cursor = connection.cursor(dictionary=True)
 
@@ -598,18 +597,20 @@ def update_report(report_id, updated_data):
     """
     try:
         cursor.execute(query, (
-            updated_data['TEXT1'],
-            updated_data['TEXT2'],
-            updated_data['RESULT'],
+            text1,
+            text2,
+            result,
             report_id
         ))
         connection.commit()
         cursor.close()
         connection.close()
+        print("reporte actualizado correctamente")
         return jsonify({'message': 'Reporte actualizado correctamente'}), 200
     except mysql.connector.Error as err:
         cursor.close()
         connection.close()
+        print(f"Error de MySQL: {err}")
         return jsonify({'error': f'Error al actualizar el reporte: {err}'}), 500
 
 
@@ -687,11 +688,19 @@ def update_tool_result(tool_result_id, new_tool_name, new_result, new_query_data
 
 
 def obtain_tools_from_report(report_id):
+    report = obtain_report_by_id(report_id)
     connection = mysql.connector.connect(**config)
     cursor = connection.cursor()
     query = "SELECT id, tool, query_data, result FROM tool_result WHERE report_id = %s"
     cursor.execute(query, (report_id,))
     results = cursor.fetchall()
+    result_list = []
+    for row in results:
+        result_list.append({
+            "tool": row[1],
+            "query": row[2],
+            "result": row[3]
+        })
     names = [row[1] for row in results]
     ids = [row[0] for row in results]
     querys_data = [row[2] for row in results]
@@ -699,21 +708,7 @@ def obtain_tools_from_report(report_id):
     cursor.close()
     connection.close()
 
-    return jsonify(ids, names, querys_data, results), 201
-#Ambos metodos son lo mismo, probemos los dos.
-def obtain_tools_by_report_id(report_id):
-    connection = mysql.connector.connect(**config)
-    cursor = connection.cursor()
-    query = "SELECT id, tool, result, query_data FROM tool_result WHERE report_id = %s"
-    cursor.execute(query, (report_id,))
-    results = cursor.fetchall()
-
-    tools = [{"id": row[0], "tool": row[1], "result": row[2], "query_data": row[3]} for row in results]
-
-    cursor.close()
-    connection.close()
-
-    return jsonify(tools), 201
+    return report, result_list
 
 
 def add_tools_batch_to_report(tools, report_id):

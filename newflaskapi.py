@@ -373,7 +373,9 @@ def get_fromreport():
     # Llamar al método get_reports_from_db para obtener los reportes
     try:
         if report_id:
-            return dbManagement.retrieve_from_memory(report_id)
+            report, result_json = dbManagement.obtain_tools_from_report(report_id)
+            return jsonify(report ,result_json), 200, {'Content-Type': 'application/json'}
+
         else:
             return jsonify({'error': 'Memoria no introducida correctamente'}), 404
     except Exception as e:
@@ -435,6 +437,9 @@ def generate_paragraph():
     # Se espera que el front envíe el jwt y la query
     jwt_token = data.get('jwt')
     query = data.get('query')
+    text1 = data.get('text1')
+    text2 = data.get('text2')
+    report_id = data.get('reportidstr')
 
     if not jwt_token or not query:
         return jsonify({'error': 'Falta jwt o query'}), 400
@@ -449,8 +454,10 @@ def generate_paragraph():
         return jsonify({'error': 'Token inválido'}), 401
 
     try:
-        result_json = jsonify(generateParagraph.generateParagraph(input=query))
-        print(result_json)
+        result_paragraph = generateParagraph.generateParagraph(input=query)
+        #result_paragraph = "resultado"
+        result_json = jsonify(result_paragraph)
+        update_report = dbManagement.update_report(report_id, text1, text2, result_paragraph)
         return result_json, 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
